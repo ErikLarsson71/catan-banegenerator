@@ -1,0 +1,9 @@
+const CACHE='catan-mobile-v3';
+const ASSETS=['./','./index.html','./style.css','./engine.js','./app.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png'];
+const assetURLs=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).href));
+async function checked(url){const response=await fetch(new Request(url,{cache:'reload',credentials:'same-origin'}));if(!response.ok||response.redirected)throw Error('Appfil er ikke tilgængelig');if(response.headers.get('content-type')?.includes('text/html')){const html=await response.clone().text();if(!html.includes('data-app="catan-board"'))throw Error('Login gemmes ikke offline');}return response;}
+self.addEventListener('install',event=>{event.waitUntil((async()=>{const responses=await Promise.all(ASSETS.map(path=>checked(new URL(path,self.registration.scope).href)));const cache=await caches.open(CACHE);await Promise.all(ASSETS.map((path,i)=>cache.put(new URL(path,self.registration.scope).href,responses[i])));await self.skipWaiting();})());});
+self.addEventListener('activate',event=>{event.waitUntil((async()=>{await Promise.all((await caches.keys()).filter(key=>key.startsWith('catan-mobile-')&&key!==CACHE).map(key=>caches.delete(key)));await self.clients.claim();})());});
+self.addEventListener('fetch',event=>{const req=event.request,url=new URL(req.url);if(req.method!=='GET'||url.origin!==self.location.origin||!assetURLs.has(url.href))return;
+if(req.mode==='navigate'){event.respondWith((async()=>{try{return await fetch(req);}catch{const cache=await caches.open(CACHE);return await cache.match(req)||await cache.match(new URL('./',self.registration.scope).href)||Response.error();}})());return;}
+event.respondWith((async()=>{const cached=await caches.match(req);return cached||fetch(req);})());});
